@@ -1,12 +1,13 @@
-#!/usr/bin/env babel-node
+#!/usr/bin/env node
+const { spawn, execSync } = require('child_process');
+const Github = require('github');
+const R  = require('ramda');
 
-import Promise from 'bluebird';
-import { spawn, execSync } from 'child_process';
-import Github from 'github';
-import R from 'ramda';
+const fs = require('fs/promises');
+const { promisify } = require('util');
+const request = require('request');
 
-const fs = Promise.promisifyAll(require('fs-extra'));
-const request = Promise.promisify(require('request'));
+const requestPromise = promisify(request)
 
 
 function spawnAsync(cmd) {
@@ -75,11 +76,11 @@ function releaseToGithub() {
   }));
 }
 
-request(download_options)
-  .then(res => fs.writeFileAsync('./phantomjs.tar.bz2', res.body, null))
+requestPromise(download_options)
+  .then(res => fs.writeFile('./phantomjs.tar.bz2', res.body, null))
   .then(() => console.log('Extracting'))
-  .then(() => spawnAsync('tar -jxvf phantomjs.tar.bz2'))
-  .then(() => fs.copyAsync(`./phantomjs-${process.env.PHANTOM_VERSION}-linux-x86_64/bin/phantomjs`, '/usr/local/bin/phantomjs', {}))
+  .then(() => spawnAsync('tar -jxvf ./phantomjs.tar.bz2'))
+  .then(() => fs.copyFile(`./phantomjs-${process.env.PHANTOM_VERSION}-linux-x86_64/bin/phantomjs`, '/usr/local/bin/phantomjs'))
   .then(() => {
     console.log('Running dockerize');
     const cmd = `dockerize -n -o dockerized-phantomjs \
@@ -93,8 +94,8 @@ request(download_options)
     /usr/bin/curl`;
     return spawnAsync(cmd);
   })
-  .then(() => fs.removeAsync('./dockerized-phantomjs/Dockerfile'))
-  .then(() => fs.removeAsync('./dockerized-phantomjs/usr/local/bin/phantomjs'))
+  .then(() => fs.rm('./dockerized-phantomjs/Dockerfile'))
+  .then(() => fs.rm('./dockerized-phantomjs/usr/local/bin/phantomjs'))
   .then(() => {
     console.log('Taring archive');
     process.chdir('./dockerized-phantomjs');
